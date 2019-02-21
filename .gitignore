@@ -102,3 +102,9 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# user defined
+mmdetection/
+demo/
+outputs/
+.vscode/
