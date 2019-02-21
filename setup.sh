@@ -28,7 +28,7 @@ if [ ! -d "mmdetection" ]; then
 	# download pretrain model
 	mkdir models && \
 	cd models && \
-	wget -nc "https://s3.ap-northeast-2.amazonaws.com/open-mmlab/mmdetection/models/rpn_r50_fpn_1x_20181010-4a9c0712.pth" && \
+	wget -nc "https://s3.ap-northeast-2.amazonaws.com/open-mmlab/mmdetection/models/retinanet_r50_fpn_1x_20181125-3d3c2142.pth" && \
 	cd ../..
 fi
 
