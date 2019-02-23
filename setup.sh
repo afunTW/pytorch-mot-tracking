@@ -17,19 +17,13 @@ download_from_gdrive() {
 		"https://drive.google.com$download_link" > $file_name
 }
 
-if [ ! -d "mmdetection" ]; then
-	# install mmdetection and mmcv
-	git clone https://github.com/open-mmlab/mmdetection
-	cd mmdetection && \
-	pip3 install cython && \
-	./compile.sh && \
-	python3 setup.py install
-
-	# download pretrain model
-	mkdir models && \
-	cd models && \
-	wget -nc "https://s3.ap-northeast-2.amazonaws.com/open-mmlab/mmdetection/models/retinanet_r50_fpn_1x_20181125-3d3c2142.pth" && \
-	cd ../..
+if [ ! -d "darknet" ]; then
+	# install darknet and compiling with CUDA
+	git clone https://github.com/pjreddie/darknet.git
+	cd darknet
+	make GPU=1
+	wget https://pjreddie.com/media/files/yolov3.weights -P cfg/
+	cd ..
 fi
 
 if [ ! -d "demo" ]; then
