@@ -1,99 +1,106 @@
+from __future__ import division
+
 from collections import defaultdict
 
-import cv2
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 
 import torch
-from torch import nn
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
-from torch.nn import functional as F
 
 from .parse_config import *
 from .utils import build_targets
 
 
 def create_modules(module_defs):
-    """Construct module list of layer blocks from module configuration in moudule_defs
+    """
+    Constructs module list of layer blocks from module configuration in module_defs
     """
     hyperparams = module_defs.pop(0)
-    output_filters = [int(hyperparams['channels'])]
+    output_filters = [int(hyperparams["channels"])]
     module_list = nn.ModuleList()
     for i, module_def in enumerate(module_defs):
         modules = nn.Sequential()
 
-        if module_def['type'] == 'convolutional':
-            bn = int(module_def['batch_normalize'])
-            filters = int(module_def['filters'])
-            kernel_size = int(module_def['size'])
-            pad = (kernel_size - 1) // 2 if int(module_def['pad']) else 0
+        if module_def["type"] == "convolutional":
+            bn = int(module_def["batch_normalize"])
+            filters = int(module_def["filters"])
+            kernel_size = int(module_def["size"])
+            pad = (kernel_size - 1) // 2 if int(module_def["pad"]) else 0
             modules.add_module(
-                'conv_%d' % i,
+                "conv_%d" % i,
                 nn.Conv2d(
                     in_channels=output_filters[-1],
                     out_channels=filters,
                     kernel_size=kernel_size,
-                    stride=int(module_def['stride']),
+                    stride=int(module_def["stride"]),
                     padding=pad,
-                    bias=not bn
-                )
+                    bias=not bn,
+                ),
             )
             if bn:
-                modules.add_module('batch_norm_%d' % i, nn.BatchNorm2d(filters))
-            if module_def['activation'] == 'leaky':
-                modules.add_module('leaky_%d' % i, nn.LeakyReLU(0.1))
+                modules.add_module("batch_norm_%d" % i, nn.BatchNorm2d(filters))
+            if module_def["activation"] == "leaky":
+                modules.add_module("leaky_%d" % i, nn.LeakyReLU(0.1))
 
-        elif module_def['type'] == 'maxpool':
-            kernel_size = int(module_def['size'])
-            stride = int(module_def['stride'])
+        elif module_def["type"] == "maxpool":
+            kernel_size = int(module_def["size"])
+            stride = int(module_def["stride"])
             if kernel_size == 2 and stride == 1:
                 padding = nn.ZeroPad2d((0, 1, 0, 1))
-                modules.add_module('_debug_padding_%d' % i, padding)
+                modules.add_module("_debug_padding_%d" % i, padding)
             maxpool = nn.MaxPool2d(
-                kernel_size=int(module_def['size']),
-                stride=int(module_def['stride']),
-                padding=int((kernel_size - 1) // 2)
+                kernel_size=int(module_def["size"]),
+                stride=int(module_def["stride"]),
+                padding=int((kernel_size - 1) // 2),
             )
-            modules.add_module('maxpool_%d' % i)
-        
-        elif module_def['type'] == 'upsample':
-            upsample = nn.Upsample(scale_factor=int(module_def['stride']), mode='nearest')
-            modules.add_module('upsample_%d' % i, upsample)
-        
-        elif module_def['type'] == 'route':
-            layers = [int(x) for x in module_def['layers'].split(',')]
+            modules.add_module("maxpool_%d" % i, maxpool)
+
+        elif module_def["type"] == "upsample":
+            upsample = nn.Upsample(scale_factor=int(module_def["stride"]), mode="nearest")
+            modules.add_module("upsample_%d" % i, upsample)
+
+        elif module_def["type"] == "route":
+            layers = [int(x) for x in module_def["layers"].split(",")]
             filters = sum([output_filters[layer_i] for layer_i in layers])
-            modules.add_module('route_%d' % i, EmptyLayer())
-        
-        elif module_def['type'] == 'shortcut':
-            filters = output_filters[int(module_def['from'])]
-            modules.add_module('shortcut_%d' % i, EmptyLayer())
-        
-        elif module_def['type'] == 'yolo':
-            anchor_idxs = [int(x) for x in module_def['mask'].split(',')]
-            # Extract anchor
-            anchors = [int(x) for x in module_def['anchors'].split(',')]
+            modules.add_module("route_%d" % i, EmptyLayer())
+
+        elif module_def["type"] == "shortcut":
+            filters = output_filters[int(module_def["from"])]
+            modules.add_module("shortcut_%d" % i, EmptyLayer())
+
+        elif module_def["type"] == "yolo":
+            anchor_idxs = [int(x) for x in module_def["mask"].split(",")]
+            # Extract anchors
+            anchors = [int(x) for x in module_def["anchors"].split(",")]
             anchors = [(anchors[i], anchors[i + 1]) for i in range(0, len(anchors), 2)]
             anchors = [anchors[i] for i in anchor_idxs]
-            num_classes = int(module_def['classes'])
-            img_height = int(hyperparams['height'])
-            # defeine detection layer
+            num_classes = int(module_def["classes"])
+            img_height = int(hyperparams["height"])
+            # Define detection layer
             yolo_layer = YOLOLayer(anchors, num_classes, img_height)
-            modules.add_module('yolo_%d' % i, yolo_layer)
-        
-
+            modules.add_module("yolo_%d" % i, yolo_layer)
         # Register module list and number of output filters
         module_list.append(modules)
         output_filters.append(filters)
+
     return hyperparams, module_list
+
 
 class EmptyLayer(nn.Module):
     """Placeholder for 'route' and 'shortcut' layers"""
+
     def __init__(self):
         super(EmptyLayer, self).__init__()
 
 
 class YOLOLayer(nn.Module):
     """Detection layer"""
+
     def __init__(self, anchors, num_classes, img_dim):
         super(YOLOLayer, self).__init__()
         self.anchors = anchors
@@ -107,29 +114,29 @@ class YOLOLayer(nn.Module):
         self.mse_loss = nn.MSELoss(size_average=True)  # Coordinate loss
         self.bce_loss = nn.BCELoss(size_average=True)  # Confidence loss
         self.ce_loss = nn.CrossEntropyLoss()  # Class loss
-    
+
     def forward(self, x, targets=None):
         nA = self.num_anchors
         nB = x.size(0)
         nG = x.size(2)
         stride = self.image_dim / nG
 
-        # Tensor for cuda support
+        # Tensors for cuda support
         FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
         LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
         ByteTensor = torch.cuda.ByteTensor if x.is_cuda else torch.ByteTensor
 
         prediction = x.view(nB, nA, self.bbox_attrs, nG, nG).permute(0, 1, 3, 4, 2).contiguous()
 
-        # get output
-        x = torch.sigmoid(prediction[..., 0]) # center x
-        y = torch.sigmoid(prediction[..., 1]) # center y
-        w = prediction[..., 2] # width
-        h = prediction[..., 3] # height
-        pred_conf = torch.sigmoid(prediction[..., 4]) # confidence
-        pred_cls = torch.sigmoid(prediction[..., 5:]) # class prediction
+        # Get outputs
+        x = torch.sigmoid(prediction[..., 0])  # Center x
+        y = torch.sigmoid(prediction[..., 1])  # Center y
+        w = prediction[..., 2]  # Width
+        h = prediction[..., 3]  # Height
+        pred_conf = torch.sigmoid(prediction[..., 4])  # Conf
+        pred_cls = torch.sigmoid(prediction[..., 5:])  # Cls pred.
 
-        # Calculate offset for each grid
+        # Calculate offsets for each grid
         grid_x = torch.arange(nG).repeat(nG, 1).view([1, 1, nG, nG]).type(FloatTensor)
         grid_y = torch.arange(nG).repeat(nG, 1).t().view([1, 1, nG, nG]).type(FloatTensor)
         scaled_anchors = FloatTensor([(a_w / stride, a_h / stride) for a_w, a_h in self.anchors])
@@ -218,6 +225,7 @@ class YOLOLayer(nn.Module):
                 -1,
             )
             return output
+
 
 class Darknet(nn.Module):
     """YOLOv3 object detection model"""
