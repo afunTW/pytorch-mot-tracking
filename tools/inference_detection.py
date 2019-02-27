@@ -50,7 +50,7 @@ def argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config',
                         dest='config',
-                        default='../darknet/cfg/yolov3.cfg',
+                        default='../cfg/yolov3.cfg',
                         help='darknet config file path')
     parser.add_argument('--checkpoint',
                         dest='checkpoint',
@@ -80,7 +80,6 @@ def main(args: argparse.Namespace):
         now_dt = datetime.now()
         logname = '{}-{}-inference.log'.format(
             now_dt.strftime('%m%dT%H%M%S'), now_dt.microsecond)
-        # logname = f"{now_dt.strftime('%m%dT%H%M%S')}-{now_dt.microsecond}-inference.log"
         logname = str(logdir / logname)
     logger = logging.getLogger(__name__)
     log_handler(logger, logname=logname)
@@ -92,6 +91,7 @@ def main(args: argparse.Namespace):
     video_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     video_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     video_fps = cap.get(cv2.CAP_PROP_FPS)
+    logger.info(f"video h={video_h}, w={video_w}, fps={video_fps}, nframe={video_nframe}")
 
     # load model and weight
     logger.info('load model')
@@ -105,24 +105,26 @@ def main(args: argparse.Namespace):
     # test
     ok, frame = cap.read()
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    logger.info(f"frame shape={frame.shape}")
     image = Image.fromarray(frame)
+    logger.info(f"image size={image.size}")
+
+    _start_time = datetime.now()
+    detections = detect_image(image, model, img_size=args.img_size)
+    _cost_time = datetime.now() - _start_time
+    logger.info(f"detect image in time {_cost_time}")
+
     frame = np.array(image)
+    logger.info(f"calc frame pad with shape {frame.shape}")
     pad_x = max(frame.shape[0] - frame.shape[1], 0) * (args.img_size / max(frame.shape))
     pad_y = max(frame.shape[1] - frame.shape[0], 0) * (args.img_size / max(frame.shape))
     unpad_h = args.img_size - pad_y
     unpad_w = args.img_size - pad_x
 
-    _start_time = datetime.now()
-    detections = detect_image(image, model, img_size=args.img_size)
-    _cost_time = datetime.now() - _start_time
-    logger.info(f"detect image in {_cost_time}")
-    print(detections)
-
     # draw test
     # Get bounding-box colors
     cmap = plt.get_cmap('tab20b')
     bbox_palette = [cmap(i) for i in np.linspace(0, 1, 20)]
-    out_image = image.copy()
     plt.figure()
     fig, ax = plt.subplots(1, figsize=(12, 9))
     ax.imshow(frame)
@@ -135,10 +137,16 @@ def main(args: argparse.Namespace):
 
         # browse detections and draw bbox
         for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
+            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+            logger.info(f"detects bbox - (x1, y1)=({x1:4d}, {y1:4d}), h={y2-y1:4d}, w={x2-x1:4d} (x2, y2)=({x2:4d}, {y2:4d})")
+
             box_h = int(((y2 - y1) / unpad_h) * frame.shape[0])
             box_w = int(((x2 - x1) / unpad_w) * frame.shape[1])
             y1 = int(((y1 - pad_y // 2) / unpad_h) * frame.shape[0])
             x1 = int(((x1 - pad_x // 2) / unpad_w) * frame.shape[1])
+
+            logger.info(f"recover bbox - (x1, y1)=({x1:4d}, {y1:4d}), h={box_h:4d}, w={box_w:4d} (x2, y2)=({x1+box_w:4d}, {y1+box_h:4d})")
+            logger.info("="*87)
 
             color = bbox_colors[int(np.where(unique_labels == int(cls_pred))[0])]
             bbox = patches.Rectangle((x1, y1), box_w, box_h,
