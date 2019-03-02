@@ -98,7 +98,7 @@ class KalmanBBoxTracker(object):
         # define internel kalman filter
         dim_x, dim_z = 7, 4
         self.kf = KalmanFilter(dim_x=dim_x, dim_z=dim_z)
-        self.kf.x = convert_bbox_to_z(bbox)
+        self.kf.x[:4] = convert_bbox_to_z(bbox)
         self.kf.F = np.array([[1,0,0,0,1,0,0],
                               [0,1,0,0,0,1,0],
                               [0,0,1,0,0,0,1],
@@ -122,7 +122,7 @@ class KalmanBBoxTracker(object):
         self.time_since_update = 0
         self.history = []
         self.hits = 0
-        self.hits_streak = 0
+        self.hit_streak = 0
         self.age = 0    # record the tracker preserved time
         self.objclass = bbox[6]        
     
@@ -198,7 +198,7 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
     if len(matches) == 0:
         matches = np.empty((0, 2), dtype=int)
     else:
-        matches = np.concatenae(matches, axis=0)
+        matches = np.concatenate(matches, axis=0)
     return (matches,
             np.array(unmatched_detections),
             np.array(unmatched_trackers))
@@ -228,7 +228,7 @@ class SORT(object):
 
         for t, trk in enumerate(trks):
             pos = self.trackers[t].predict()[0] # get the predcit bbox
-            trks[:] = [pos[0], pos[1], pos[2], pos[3], 0]
+            trk[:] = [pos[0], pos[1], pos[2], pos[3], 0]
             if np.any(np.isnan(pos)):
                 to_del.append(t)
         
@@ -240,7 +240,7 @@ class SORT(object):
         matched, unmatched_detections, unmatched_trackers = associate_detections_to_trackers(dets, trks)
 
         # update matched trackers with assigned detections
-        for t, trk in enumerate(trks):
+        for t, trk in enumerate(self.trackers):
             if t not in unmatched_trackers:
                 # matched[:, 0] -> trackers, matched[:, 1] -> detections
                 # get the matched detection with related tracker
@@ -251,7 +251,6 @@ class SORT(object):
         
         # create and initialize new trackers for unmatch detections
         for i in unmatched_detections:
-            # dets[i, :] = bbox
             trk = KalmanBBoxTracker(dets[i, :])
             self.trackers.append(trk)
         
@@ -265,7 +264,7 @@ class SORT(object):
             num_trackers -= 1
             # remove dead tracklet
             if trk.time_since_update > self.max_age:
-                self.trackers.pop(i)
+                self.trackers.pop(num_trackers)
         
         if len(ret) > 0:
             return np.concatenate(ret)
