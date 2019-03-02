@@ -18,6 +18,8 @@ from tracker.utils import log_handler
 from yolov3.models import Darknet
 from yolov3.utils import load_classes, non_max_suppression
 from datetime import datetime
+from tracker.sort import SORT
+from tqdm import tqdm
 
 
 def detect_image(img, model, img_size=416, conf_threshold=0.8, nms_threshold=0.4):
@@ -66,6 +68,8 @@ def argparser():
                         help='target vidoe to inference')
     parser.add_argument('--img-size', dest='img_size', default=416, type=int,
                         help='model input image size')
+    parser.add_argument('--output-dir', dest='output_dir', default='../outputs',
+                        help='output video directory')
     parser.add_argument('--nolog', dest='islog', action='store_false')
     parser.set_defaults(islog=True)
     return parser
@@ -78,7 +82,7 @@ def main(args: argparse.Namespace):
         if not logdir.exists():
             logdir.mkdir(parents=True)
         now_dt = datetime.now()
-        logname = '{}-{}-inference.log'.format(
+        logname = '{:d}-{:d}-inference.log'.format(
             now_dt.strftime('%m%dT%H%M%S'), now_dt.microsecond)
         logname = str(logdir / logname)
     logger = logging.getLogger(__name__)
@@ -91,7 +95,15 @@ def main(args: argparse.Namespace):
     video_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     video_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     video_fps = cap.get(cv2.CAP_PROP_FPS)
-    logger.info(f"video h={video_h}, w={video_w}, fps={video_fps}, nframe={video_nframe}")
+    logger.info('video h={}, w={}, fps={:3f}, nframe={}'.format(
+        int(video_h), int(video_w), video_fps, int(video_nframe)))
+    
+    output_dir = Path(args.output_dir)
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
+    output_videoname = str(output_dir / '{}.avi'.format(Path(args.video).stem))
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(output_videoname, fourcc=fourcc, fps=int(video_fps), frameSize=(int(video_w), int(video_h)))
 
     # load model and weight
     logger.info('load model')
@@ -101,66 +113,65 @@ def main(args: argparse.Namespace):
     model.cuda()
     model.eval()
     classes = load_classes(args.classname)
+    tracker = SORT()
 
-    # test
-    ok, frame = cap.read()
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    logger.info(f"frame shape={frame.shape}")
-    image = Image.fromarray(frame)
-    logger.info(f"image size={image.size}")
+    # loop over the video
+    # for frame_idx in tqdm(range(int(video_nframe))):
+    for frame_idx in range(int(video_nframe)):
+        ok, frame = cap.read()
+        if not ok:
+            break
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(frame)
 
-    _start_time = datetime.now()
-    detections = detect_image(image, model, img_size=args.img_size)
-    _cost_time = datetime.now() - _start_time
-    logger.info(f"detect image in time {_cost_time}")
+        # detection
+        _start_time = datetime.now()
+        detections = detect_image(image, model, img_size=args.img_size)
+        _cost_time = datetime.now() - _start_time
+        logger.debug('detect frame {} in {}, get detections {}'.format(
+            frame_idx+1, str(_cost_time), detections.shape))
 
-    frame = np.array(image)
-    logger.info(f"calc frame pad with shape {frame.shape}")
-    pad_x = max(frame.shape[0] - frame.shape[1], 0) * (args.img_size / max(frame.shape))
-    pad_y = max(frame.shape[1] - frame.shape[0], 0) * (args.img_size / max(frame.shape))
-    unpad_h = args.img_size - pad_y
-    unpad_w = args.img_size - pad_x
+        # image and bbox transition
+        frame = np.array(image)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        pad_x = max(frame.shape[0] - frame.shape[1], 0) * (args.img_size / max(frame.shape))
+        pad_y = max(frame.shape[1] - frame.shape[0], 0) * (args.img_size / max(frame.shape))
+        unpad_h = args.img_size - pad_y
+        unpad_w = args.img_size - pad_x
 
-    # draw test
-    # Get bounding-box colors
-    cmap = plt.get_cmap('tab20b')
-    bbox_palette = [cmap(i) for i in np.linspace(0, 1, 20)]
-    plt.figure()
-    fig, ax = plt.subplots(1, figsize=(12, 9))
-    ax.imshow(frame)
+        # draw setting
+        cmap = plt.get_cmap('tab20b')
+        bbox_palette = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]
+        if detections is not None:
+            tracked_detections = tracker.update(detections.cpu())
+            unique_labels = detections[:, -1].cpu().unique()
+            num_unique_labels = len(unique_labels)
+            bbox_colors = random.sample(bbox_palette, num_unique_labels)
+            for x1, x2, y1, y2, obj_id, cls_pred in tracked_detections:
+                box_h = int(((y2 - y1) / unpad_h) * frame.shape[0])
+                box_w = int(((x2 - x1) / unpad_w) * frame.shape[1])
+                y1 = int(((y1 - pad_y // 2) / unpad_h) * frame.shape[0])
+                x1 = int(((x1 - pad_x // 2) / unpad_w) * frame.shape[1])
+                label = classes[int(cls_pred)]
+                color = bbox_colors[int(obj_id) % len(bbox_colors)]
+                color = [i*255 for i in color]
 
-    # draw bbox and label
-    if detections is not None:
-        unique_labels = detections[:, -1].cpu().unique()
-        num_unique_labels = len(unique_labels)
-        bbox_colors = random.sample(bbox_palette, num_unique_labels)
-
-        # browse detections and draw bbox
-        for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
-            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-            logger.info(f"detects bbox - (x1, y1)=({x1:4d}, {y1:4d}), h={y2-y1:4d}, w={x2-x1:4d} (x2, y2)=({x2:4d}, {y2:4d})")
-
-            box_h = int(((y2 - y1) / unpad_h) * frame.shape[0])
-            box_w = int(((x2 - x1) / unpad_w) * frame.shape[1])
-            y1 = int(((y1 - pad_y // 2) / unpad_h) * frame.shape[0])
-            x1 = int(((x1 - pad_x // 2) / unpad_w) * frame.shape[1])
-
-            logger.info(f"recover bbox - (x1, y1)=({x1:4d}, {y1:4d}), h={box_h:4d}, w={box_w:4d} (x2, y2)=({x1+box_w:4d}, {y1+box_h:4d})")
-            logger.info("="*87)
-
-            color = bbox_colors[int(np.where(unique_labels == int(cls_pred))[0])]
-            bbox = patches.Rectangle((x1, y1), box_w, box_h,
-                                     linewidth=2,
-                                     edgecolor=color,
-                                     facecolor='none')
-            ax.add_patch(bbox)
-            plt.text(x1, y1,
-                     s=classes[int(cls_pred)],
-                     color='white',
-                     verticalalignment='top',
-                     bbox={'color': color, 'pad': 0})
-    plt.axis('off')
-    plt.savefig('../demo/test.jpg', bbox_inches='tight', pad_inches=0.0)
+                cv2.rectangle(frame,
+                              (x1, y1),
+                              (x1+box_w, y1+box_h),
+                              color, 2)
+                cv2.rectangle(frame,
+                              (x1, y1-35),
+                              (x1+len(label)*19+60, y1),
+                              color, -1)
+                cv2.putText(frame,
+                            '{}-{}'.format(label, int(obj_id)),
+                            (x1, y1-10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            1, (255, 255, 255), 3)
+        out.write(frame)
+    cap.release()
+    out.release()
 
 
 if __name__ == '__main__':
