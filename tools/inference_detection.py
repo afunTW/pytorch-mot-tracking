@@ -126,18 +126,18 @@ def main(args: argparse.Namespace):
         if not ok:
             break
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image = Image.fromarray(frame)
+        pilimg = Image.fromarray(frame)
 
         # detection
         _start_time = datetime.now()
-        detections = detect_image(image, model, img_size=args.img_size)
+        detections = detect_image(pilimg, model, img_size=args.img_size)
         _cost_time = datetime.now() - _start_time
 
         # image and bbox transition
-        frame = np.array(image)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        pad_x = max(frame.shape[0] - frame.shape[1], 0) * (args.img_size / max(frame.shape))
-        pad_y = max(frame.shape[1] - frame.shape[0], 0) * (args.img_size / max(frame.shape))
+        image = np.array(pilimg)
+        pad_x = max(image.shape[0] - image.shape[1], 0) * (args.img_size / max(image.shape))
+        pad_y = max(image.shape[1] - image.shape[0], 0) * (args.img_size / max(image.shape))
         unpad_h = args.img_size - pad_y
         unpad_w = args.img_size - pad_x
 
@@ -147,7 +147,7 @@ def main(args: argparse.Namespace):
             tracked_detections = tracker.update(detections.cpu())
             unique_labels = detections[:, -1].cpu().unique()
             num_unique_labels = len(unique_labels)
-            for x1, x2, y1, y2, obj_id, cls_pred in tracked_detections:
+            for x1, y1, x2, y2, obj_id, cls_pred in tracked_detections:
                 box_h = int(((y2 - y1) / unpad_h) * frame.shape[0])
                 box_w = int(((x2 - x1) / unpad_w) * frame.shape[1])
                 y1 = int(((y1 - pad_y // 2) / unpad_h) * frame.shape[0])
