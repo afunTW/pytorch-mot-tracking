@@ -1,9 +1,13 @@
-# pytorch-pedestrian-tracking
+# pytorch-mot-tracking
 
-Demo the Kalman Filter on pedestrian tracking with mmdetection.
+Demo the multiple object tracking.
 
 - model: pretrain YOLOv3 model from DarkNet with COCO data
 - dataset: COCO
+
+| YOLOv3 detection | SORT |
+| --- | --- |
+| ![dets](demo/pedestrian-1-dets.gif) | ![SORT](demo/pedestrian-1-ans.gif)
 
 ## Reference
 
