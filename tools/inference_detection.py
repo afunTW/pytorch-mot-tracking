@@ -132,8 +132,6 @@ def main(args: argparse.Namespace):
         _start_time = datetime.now()
         detections = detect_image(image, model, img_size=args.img_size)
         _cost_time = datetime.now() - _start_time
-        logger.debug('detect frame {} in {}, get detections {}'.format(
-            frame_idx+1, str(_cost_time), detections.shape))
 
         # image and bbox transition
         frame = np.array(image)
@@ -144,6 +142,8 @@ def main(args: argparse.Namespace):
         unpad_w = args.img_size - pad_x
 
         if detections is not None:
+            logger.debug('detect frame {} in {}, get detections {}'.format(
+                frame_idx+1, str(_cost_time), detections.shape))
             tracked_detections = tracker.update(detections.cpu())
             unique_labels = detections[:, -1].cpu().unique()
             num_unique_labels = len(unique_labels)

@@ -13,7 +13,7 @@ Demo the multiple object tracking.
 
 ### SORT
 
-![SORT](demo/pedestrian-1-ans.gif)
+![SORT](demo/pedestrian-1-sort.gif)
 
 ## Reference
 
