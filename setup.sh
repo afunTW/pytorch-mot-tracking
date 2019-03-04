@@ -26,8 +26,10 @@ if [ ! -d "darknet" ]; then
 	cd ..
 fi
 
-if [ ! -d "demo" ]; then
+# file < 100 MB
+if [ ! -f "demo/pedestrian-1.mp4" ]; then
 	# download demo video
-	mkdir demo && \
-	download_from_gdrive "1av2UGYErDb6FxE867zbvhc6B2ZpMZOGz" "demo/pedestrian-1.mp4"
+	mkdir -p demo && \
+	# download_from_gdrive "1SHYBg-xRhSZxTduVGP2rTHwyk8Ffqxnf" "data/pedestrian-1.mp4"
+	curl -L "https://drive.google.com/uc?export=download&id=1SHYBg-xRhSZxTduVGP2rTHwyk8Ffqxnf" -o "demo/pedestrian-1.mp4"
 fi
