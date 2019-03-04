@@ -105,6 +105,6 @@ venv.bak/
 
 # user defined
 darknet/
-data/
+demo/*.mp4
 outputs/
 .vscode/
