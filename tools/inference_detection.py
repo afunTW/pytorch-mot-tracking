@@ -115,9 +115,13 @@ def main(args: argparse.Namespace):
     classes = load_classes(args.classname)
     tracker = SORT()
 
+    # draw setting
+    cmap = plt.get_cmap('tab20b')
+    bbox_palette = [cmap(i)[:3] for i in np.linspace(0, 1, 1000)]
+    random.shuffle(bbox_palette)
+
     # loop over the video
-    # for frame_idx in tqdm(range(int(video_nframe))):
-    for frame_idx in range(int(video_nframe)):
+    for frame_idx in tqdm(range(int(video_nframe))):
         ok, frame = cap.read()
         if not ok:
             break
@@ -139,21 +143,17 @@ def main(args: argparse.Namespace):
         unpad_h = args.img_size - pad_y
         unpad_w = args.img_size - pad_x
 
-        # draw setting
-        cmap = plt.get_cmap('tab20b')
-        bbox_palette = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]
         if detections is not None:
             tracked_detections = tracker.update(detections.cpu())
             unique_labels = detections[:, -1].cpu().unique()
             num_unique_labels = len(unique_labels)
-            bbox_colors = random.sample(bbox_palette, num_unique_labels)
             for x1, x2, y1, y2, obj_id, cls_pred in tracked_detections:
                 box_h = int(((y2 - y1) / unpad_h) * frame.shape[0])
                 box_w = int(((x2 - x1) / unpad_w) * frame.shape[1])
                 y1 = int(((y1 - pad_y // 2) / unpad_h) * frame.shape[0])
                 x1 = int(((x1 - pad_x // 2) / unpad_w) * frame.shape[1])
                 label = classes[int(cls_pred)]
-                color = bbox_colors[int(obj_id) % len(bbox_colors)]
+                color = bbox_palette[int(obj_id) % len(bbox_palette)]
                 color = [i*255 for i in color]
 
                 cv2.rectangle(frame,
