@@ -2,21 +2,17 @@
 
 Demo the multiple object tracking.
 
-- model: pretrain YOLOv3 model from DarkNet with COCO data
-- dataset: COCO
-
 ## Results 
 
-### YOLOv3 detection
-
-![dets](demo/pedestrian-1-dets.gif)
-
 ### SORT
+
+- model: pretrain YOLOv3 model from DarkNet with COCO data
+- dataset: COCO
 
 ![SORT](demo/pedestrian-1-sort.gif)
 
 ## Reference
 
-- [YOLOv3 offical website (Darknet)](https://pjreddie.com/darknet/yolo/)
-- [YOLOv3 pytorch 1.0.0 implementation (eriklindernoren/PyTorch-YOLOv3)](https://github.com/eriklindernoren/PyTorch-YOLOv3)
-- [SORT tracking (abewley/sort)](https://github.com/abewley/sort)
+- YOLOv3: An Incremental Improvement [[web]](https://pjreddie.com/darknet/yolo/) [[paper]](https://arxiv.org/abs/1804.02767) [[github]](https://github.com/pjreddie/darknet)
+- Simple Online and Realtime Tracking [[paper]](https://arxiv.org/abs/1602.00763) [[github]](https://github.com/abewley/sort)
+- Object detection and tracking in PyTorch (implementation) [[github]](https://github.com/cfotache/pytorch_objectdetecttrack) [[medium]](https://towardsdatascience.com/object-detection-and-tracking-in-pytorch-b3cf1a696a98)
