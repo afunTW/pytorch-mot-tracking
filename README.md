@@ -6,6 +6,9 @@ Demo the multiple object tracking.
 
 ### SORT
 
+**SORT = Kalman Filter + Hungarian matching**
+No any Deep Learning tricks involved, if we replace to better detection model, the performance will simply enhance
+
 - model: pretrain YOLOv3 model from DarkNet with COCO data
 - dataset: COCO
 
