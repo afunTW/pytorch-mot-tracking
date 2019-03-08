@@ -17,5 +17,6 @@ No any Deep Learning tricks involved, if we replace to better detection model, t
 ## Reference
 
 - YOLOv3: An Incremental Improvement [[web]](https://pjreddie.com/darknet/yolo/) [[paper]](https://arxiv.org/abs/1804.02767) [[github]](https://github.com/pjreddie/darknet)
-- Simple Online and Realtime Tracking [[paper]](https://arxiv.org/abs/1602.00763) [[github]](https://github.com/abewley/sort)
 - Object detection and tracking in PyTorch (implementation) [[github]](https://github.com/cfotache/pytorch_objectdetecttrack) [[medium]](https://towardsdatascience.com/object-detection-and-tracking-in-pytorch-b3cf1a696a98)
+- Simple Online and Realtime Tracking [[paper]](https://arxiv.org/abs/1602.00763) [[github]](https://github.com/abewley/sort)
+- Simple Online and Realtime Tracking with a Deep Association Metric　[[paper]](https://arxiv.org/abs/1703.07402) [[github]](https://github.com/nwojke/deep_sort)
